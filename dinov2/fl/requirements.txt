@@ -1,0 +1,17 @@
+# FL Pipeline Dependencies
+# Most are pre-installed on Kaggle, but listed for completeness
+
+# Core (usually pre-installed on Kaggle)
+torch>=2.0.0
+torchvision>=0.15.0
+numpy>=1.23.0
+scikit-learn>=1.2.0
+pillow>=9.4.0
+tqdm>=4.65.0
+
+# DINOv2 specific
+omegaconf>=2.3.0
+fvcore>=0.1.5
+
+# Optional: Memory-efficient attention (may need specific CUDA version)
+# xformers==0.0.18
