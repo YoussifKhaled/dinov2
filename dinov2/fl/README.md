@@ -1,53 +1,108 @@
-# FL Data Heterogeneity Pipeline using DINOv2
+# FL Data Heterogeneity Pipeline
 
-This module implements **Embedding-Based Data Heterogeneity** for Federated Learning (FL) on semantic segmentation tasks, following the methodology from *"Redefining non-IID Data in Federated Learning for Computer Vision Tasks"* (Borazjani et al.).
-
-## Overview
-
-Standard non-IID partitioning based on class labels is **ineffective for semantic segmentation** where each image contains multiple classes. This pipeline solves that by:
-
-1. **Extracting scene embeddings** using DINOv2's [CLS] token
-2. **Clustering scenes** using K-Means to discover latent visual categories
-3. **Partitioning data** using Dirichlet distribution over clusters
+Embedding-based non-IID data partitioning for Federated Learning using DINOv2.
 
 ---
 
-## Quick Start on Kaggle
+## Section 1: Kaggle Notebook Setup
 
-### Step 1: Setup Environment
+Follow these steps **exactly in order** to prepare your Kaggle notebook.
 
-Run these cells at the start of your Kaggle notebook:
+### Prerequisites
+
+1. Create a new Kaggle notebook
+2. Enable **GPU** (Settings → Accelerator → GPU T4 x2 or P100)
+3. Enable **Internet** (Settings → Internet → On)
+4. Add your **Cityscapes dataset** (+ Add Data → search "cityscapes")
+
+---
+
+### Cell 1: Clone Repository
 
 ```python
-# Cell 1: Install dependencies (run once)
-!pip install -q omegaconf fvcore xformers
-
-# Cell 2: Clone/setup the repo (if not already present)
-# Skip if you uploaded the dinov2 folder directly
 !git clone https://github.com/YoussifKhaled/dinov2.git
 %cd dinov2
 ```
 
-### Step 2: Prepare Dataset Path Mapping
+---
+
+### Cell 2: Fix PyTorch & Install Dependencies
 
 ```python
-# Cell 3: Configure paths
-# Update BASE_PATH to match your Kaggle dataset location
-BASE_PATH = "/kaggle/input/cityscapes"  # Adjust to your dataset path
-DATASET_LIST = "train_fine.txt"
-OUTPUT_DIR = "/kaggle/working/fl_outputs"
+# Uninstall Kaggle's broken PyTorch
+!pip uninstall -y torch torchvision torchaudio
+
+# Install from our requirements.txt (has correct versions)
+!pip install -r dinov2/fl/requirements.txt
 ```
 
-### Step 3: Run the Pipeline
+---
 
-**Option A: Run Full Pipeline (Recommended)**
+### Cell 3: Restart Kernel
+
+**⚠️ CRITICAL: You MUST restart the kernel now.**
+
+- Click **Runtime → Restart session** (or the restart button)
+- After restart, **run Cell 4 first** (skip Cells 1-3)
+
+---
+
+### Cell 4: Verify Setup (Run After Restart)
 
 ```python
-# Cell 4: Run complete pipeline
+%cd /kaggle/working/dinov2
+
+import torch
+import torchvision
+import os
+
+print("=" * 50)
+print("ENVIRONMENT CHECK")
+print("=" * 50)
+print(f"PyTorch: {torch.__version__}")
+print(f"Torchvision: {torchvision.__version__}")
+print(f"CUDA available: {torch.cuda.is_available()}")
+if torch.cuda.is_available():
+    print(f"GPU: {torch.cuda.get_device_name(0)}")
+
+# Check dataset
+BASE_PATH = "/kaggle/input/cityscapes-fine-dataset"  # ← CHANGE IF DIFFERENT
+print(f"\nDataset path: {BASE_PATH}")
+print(f"Dataset exists: {os.path.exists(BASE_PATH)}")
+if os.path.exists(BASE_PATH):
+    print(f"Contents: {os.listdir(BASE_PATH)}")
+else:
+    print("ERROR: Dataset not found! Check your data path.")
+    print("Go to: + Add Data → find your Cityscapes dataset")
+    print("Then update BASE_PATH above")
+print("=" * 50)
+```
+
+**Expected output:**
+```
+PyTorch: 2.1.0+cu118
+Torchvision: 0.16.0+cu118
+CUDA available: True
+GPU: Tesla T4
+Dataset exists: True
+Contents: ['leftImg8bit', 'gtFine']
+```
+
+If dataset not found, update `BASE_PATH` to match your actual dataset path from Kaggle's Data tab.
+
+---
+
+## Section 2: Run Pipeline
+
+### Option A: Full Pipeline (Recommended)
+
+Runs all 3 phases sequentially.
+
+```python
 !python -m dinov2.fl.scripts.run_pipeline \
-    --dataset_list_file {DATASET_LIST} \
-    --base_path {BASE_PATH} \
-    --output_dir {OUTPUT_DIR} \
+    --dataset_list_file train_fine.txt \
+    --base_path /kaggle/input/cityscapes-fine-dataset \
+    --output_dir /kaggle/working/fl_outputs \
     --model_name dinov2_vitl14 \
     --batch_size 16 \
     --n_clusters 16 \
@@ -55,233 +110,79 @@ OUTPUT_DIR = "/kaggle/working/fl_outputs"
     --alpha 0.5
 ```
 
-**Option B: Run Phases Separately**
+---
+
+### Option B: Run Phases Separately
+
+Useful if you want to resume from a checkpoint or experiment with different parameters.
+
+**Phase 1: Extract Embeddings** (~15-20 min on T4)
 
 ```python
-# Cell 4a: Phase 1 - Extract embeddings (~15-20 min for Cityscapes)
 !python -m dinov2.fl.scripts.run_extraction \
-    --dataset_list_file {DATASET_LIST} \
-    --base_path {BASE_PATH} \
-    --output_dir {OUTPUT_DIR} \
+    --dataset_list_file train_fine.txt \
+    --base_path /kaggle/input/cityscapes-fine-dataset \
+    --output_dir /kaggle/working/fl_outputs \
     --model_name dinov2_vitl14 \
     --batch_size 16
-
-# Cell 4b: Phase 2 - Cluster embeddings (~1 min)
-!python -m dinov2.fl.scripts.run_clustering \
-    --output_dir {OUTPUT_DIR} \
-    --n_clusters 16
-
-# Cell 4c: Phase 3 - Partition data (~seconds)
-!python -m dinov2.fl.scripts.run_partitioning \
-    --output_dir {OUTPUT_DIR} \
-    --n_clients 10 \
-    --alpha 0.5
 ```
 
-### Step 4: Load and Use the Splits
+**Phase 2: Cluster Embeddings** (~1 min)
 
 ```python
-# Cell 5: Load client splits for FL training
-import torch
+!python -m dinov2.fl.scripts.run_clustering \
+    --output_dir /kaggle/working/fl_outputs \
+    --n_clusters 16
+```
 
-splits = torch.load(f"{OUTPUT_DIR}/client_splits.pth")
+**Phase 3: Partition Data** (~seconds)
 
-# Access client data
-for client_id in range(10):
-    indices = splits["client_data"][client_id]
-    paths = splits["client_paths"][client_id]
-    print(f"Client {client_id}: {len(indices)} samples")
-
-# Get statistics
-stats = splits["statistics"]
-print(f"\nPartition stats:")
-print(f"  Alpha: {splits['config']['alpha']}")
-print(f"  Samples range: {stats['min_samples']} - {stats['max_samples']}")
+```python
+!python -m dinov2.fl.scripts.run_partitioning \
+    --output_dir /kaggle/working/fl_outputs \
+    --n_clients 10 \
+    --alpha 0.5
 ```
 
 ---
 
-## Command Reference
+### Load & Use Results
 
-### Full Pipeline
+```python
+import torch
 
-```bash
-python -m dinov2.fl.scripts.run_pipeline \
-    --dataset_list_file <path_to_txt>     # train_fine.txt
-    --base_path <kaggle_data_path>        # /kaggle/input/cityscapes
-    --output_dir <output_path>            # ./fl_outputs
-    --model_name <model>                  # dinov2_vitl14 (default)
-    --batch_size <int>                    # 32 (default), use 16 for T4 GPU
-    --n_clusters <int>                    # 16 (default)
-    --n_clients <int>                     # 10 (default)
-    --alpha <float>                       # 0.5 (default)
-    --seed <int>                          # 42 (default)
+splits = torch.load("/kaggle/working/fl_outputs/client_splits.pth")
+
+print(f"Total clients: {len(splits['client_data'])}")
+print(f"Alpha (heterogeneity): {splits['config']['alpha']}")
+print()
+for cid in range(len(splits['client_data'])):
+    n = len(splits['client_data'][cid])
+    print(f"Client {cid}: {n} samples")
 ```
 
-### Individual Phases
+---
 
-```bash
-# Phase 1: Extract embeddings
-python -m dinov2.fl.scripts.run_extraction \
-    --dataset_list_file train_fine.txt \
-    --base_path /kaggle/input/cityscapes \
-    --output_dir ./fl_outputs \
-    --model_name dinov2_vitl14 \
-    --batch_size 16
+## Parameters Reference
 
-# Phase 2: Cluster (requires embeddings.pth)
-python -m dinov2.fl.scripts.run_clustering \
-    --output_dir ./fl_outputs \
-    --n_clusters 16
-
-# Phase 3: Partition (requires clusters.pth)
-python -m dinov2.fl.scripts.run_partitioning \
-    --output_dir ./fl_outputs \
-    --n_clients 10 \
-    --alpha 0.5
-```
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--base_path` | - | Path to Cityscapes dataset on Kaggle |
+| `--output_dir` | - | Where to save outputs |
+| `--alpha` | 0.5 | **Heterogeneity control**: 0.1=extreme non-IID, 1.0=moderate, 100=IID |
+| `--n_clusters` | 16 | Number of scene clusters (K-Means) |
+| `--n_clients` | 10 | Number of FL clients to partition data into |
+| `--batch_size` | 32 | Batch size for embedding extraction (use 16 for T4 GPU) |
+| `--model_name` | dinov2_vitl14 | Model variant: `dinov2_vits14`, `dinov2_vitb14`, `dinov2_vitl14`, `dinov2_vitg14` |
 
 ---
 
 ## Output Files
 
+All outputs saved to `--output_dir`:
+
 | File | Description |
 |------|-------------|
-| `embeddings.pth` | DINOv2 [CLS] token embeddings for all images |
-| `clusters.pth` | K-Means cluster assignments and centroids |
-| `client_splits.pth` | Final FL client data partitions |
-
-### `client_splits.pth` Structure
-
-```python
-{
-    "client_data": {
-        0: [idx1, idx2, ...],  # Sample indices for client 0
-        1: [idx3, idx4, ...],  # Sample indices for client 1
-        ...
-    },
-    "client_paths": {
-        0: ["/path/to/img1.png", ...],  # Image paths for client 0
-        ...
-    },
-    "statistics": {
-        "n_clients": 10,
-        "alpha": 0.5,
-        "samples_per_client": {0: 297, 1: 312, ...},
-        "clusters_per_client": {0: 8, 1: 12, ...},
-        ...
-    },
-    "config": {
-        "n_clients": 10,
-        "alpha": 0.5,
-        "n_clusters": 16,
-        "seed": 42
-    }
-}
-```
-
----
-
-## Key Parameters
-
-### Alpha (Dirichlet Concentration)
-
-Controls the degree of data heterogeneity:
-
-| Alpha | Heterogeneity | Description |
-|-------|---------------|-------------|
-| 0.1   | Extreme       | Clients receive data from 1-2 clusters only |
-| 0.5   | High          | Significant cluster imbalance across clients |
-| 1.0   | Moderate      | Noticeable but balanced non-IID |
-| 10.0  | Low           | Nearly uniform distribution |
-| 100.0 | IID           | Approximately uniform (baseline) |
-
-### Number of Clusters (K)
-
-Recommended values for Cityscapes:
-- **K=8**: Coarse scene categories
-- **K=16**: Balanced granularity (recommended)
-- **K=32**: Fine-grained scene types
-
----
-
-## Python API Usage
-
-```python
-from dinov2.fl import FLConfig, extract_embeddings, cluster_embeddings, partition_data
-
-# Create configuration
-config = FLConfig(
-    dataset_list_file="train_fine.txt",
-    base_path="/kaggle/input/cityscapes",
-    output_dir="./fl_outputs",
-    model_name="dinov2_vitl14",
-    batch_size=16,
-    n_clusters=16,
-    n_clients=10,
-    alpha=0.5,
-)
-
-# Run pipeline
-extract_embeddings(config)
-cluster_embeddings(config)
-result = partition_data(config)
-
-# Use results
-client_data = result["client_data"]
-for client_id, indices in client_data.items():
-    print(f"Client {client_id}: {len(indices)} samples")
-```
-
----
-
-## Troubleshooting
-
-### CUDA Out of Memory
-
-Reduce batch size:
-```bash
---batch_size 8  # or even 4 for very limited GPU memory
-```
-
-### Path Errors
-
-Ensure `base_path` correctly maps to your Kaggle dataset structure:
-```
-/kaggle/input/cityscapes/
-├── leftImg8bit/
-│   └── train/
-│       ├── aachen/
-│       └── ...
-└── gtFine/
-    └── train/
-        ├── aachen/
-        └── ...
-```
-
-### Missing Dependencies
-
-```bash
-pip install omegaconf fvcore xformers scikit-learn tqdm pillow
-```
-
----
-
-## Citation
-
-If using this pipeline, please cite:
-
-```bibtex
-@article{borazjani2023redefining,
-  title={Redefining non-IID Data in Federated Learning for Computer Vision Tasks},
-  author={Borazjani, et al.},
-  year={2023}
-}
-
-@article{oquab2023dinov2,
-  title={DINOv2: Learning Robust Visual Features without Supervision},
-  author={Oquab, Maxime and others},
-  journal={arXiv preprint arXiv:2304.07193},
-  year={2023}
-}
-```
+| `embeddings.pth` | DINOv2 CLS embeddings (N × 1024) |
+| `clusters.pth` | K-Means cluster assignments |
+| `client_splits.pth` | Final client partitions with paths and statistics |
