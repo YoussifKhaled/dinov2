@@ -108,11 +108,16 @@ def main():
     
     clusters_path = f"{args.output_dir}/clusters_global.pth"
     
-    cluster_result = cluster_embeddings(
-        embeddings_path=args.embeddings_path,
+    # Create config for clustering
+    cluster_config = FLConfig(
+        output_dir=args.output_dir,
         n_clusters=args.n_clusters,
         seed=args.seed,
-        output_dir=args.output_dir,
+    )
+    
+    cluster_result = cluster_embeddings(
+        config=cluster_config,
+        embeddings_path=args.embeddings_path,
         save=True,
     )
     

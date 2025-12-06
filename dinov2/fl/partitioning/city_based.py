@@ -23,7 +23,7 @@ import torch
 from sklearn.cluster import KMeans
 
 from ..config import FLConfig
-from ..clustering.kmeans import load_embeddings
+from ..embedding.extractor import load_embeddings
 from .dirichlet import DirichletPartitioner
 
 
