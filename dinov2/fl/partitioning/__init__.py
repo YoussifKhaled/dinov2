@@ -6,5 +6,14 @@
 """Partitioning module for FL pipeline."""
 
 from .dirichlet import partition_data, load_client_splits, DirichletPartitioner
+from .city_based import partition_city_based
+from .export_partitions import export_partition_to_json, export_multiple_partitions
 
-__all__ = ["partition_data", "load_client_splits", "DirichletPartitioner"]
+__all__ = [
+    "partition_data", 
+    "load_client_splits", 
+    "DirichletPartitioner",
+    "partition_city_based",
+    "export_partition_to_json",
+    "export_multiple_partitions",
+]
