@@ -272,7 +272,7 @@ if __name__ == "__main__":
                         help="Path to embeddings.pth file")
     parser.add_argument("--output_dir", type=str, required=True,
                         help="Output directory")
-    parser.add_argument("--n_clients_per_city", type=int, default=5,
+    parser.add_argument("--n_clients_per_city", type=int, default=None,
                         help="Number of clients per city")
     parser.add_argument("--clusters_per_city", type=int, default=None,
                         help="Number of clusters per city (auto if not specified)")
