@@ -148,6 +148,8 @@ def partition_city_based(
         city_embs = embeddings[city_indices]
         n_samples = len(city_indices)
         
+        print(f"number of clients per city: {n_clients_per_city}")
+
         if n_clients_per_city is None:
             n_clients_per_city = max(1, min(5, round(n_samples / 50)))
         else:
