@@ -55,7 +55,7 @@ def parse_args() -> argparse.Namespace:
         help="Number of clients for Settings 1 & 2"
     )
     parser.add_argument(
-        "--n_clients_per_city", type=int, default=5,
+        "--n_clients_per_city", type=int, default=None,
         help="Number of clients per city for Setting 3"
     )
     parser.add_argument(

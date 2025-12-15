@@ -78,7 +78,7 @@ def cluster_city_embeddings(
 
 def partition_city_based(
     embeddings_path: str,
-    n_clients_per_city: int = 5,
+    n_clients_per_city: Optional[int] = None,
     clusters_per_city: Optional[int] = None,
     alpha: float = 0.5,
     min_samples_per_client: int = 5,
@@ -148,6 +148,11 @@ def partition_city_based(
         city_embs = embeddings[city_indices]
         n_samples = len(city_indices)
         
+        if n_clients_per_city is None:
+            n_clients_per_city = max(1, min(5, round(n_samples / 50)))
+        else:
+            n_clients_per_city = n_clients_per_city
+
         # Determine number of clusters for this city
         if clusters_per_city is None:
             # Auto: roughly 1 cluster per 30 samples, min 2, max 8
