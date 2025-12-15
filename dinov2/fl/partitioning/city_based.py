@@ -136,6 +136,9 @@ def partition_city_based(
     all_client_data = {}
     all_client_paths = {}
     city_statistics = {}
+
+    # Keep the originally requested value; recompute adaptively per city without overwriting it
+    requested_n_clients_per_city = n_clients_per_city
     
     np.random.seed(seed)
     
@@ -148,12 +151,17 @@ def partition_city_based(
         city_embs = embeddings[city_indices]
         n_samples = len(city_indices)
         
-        print(f"number of clients per city: {n_clients_per_city}")
+        requested_display = (
+            str(requested_n_clients_per_city)
+            if requested_n_clients_per_city is not None
+            else "adaptive"
+        )
+        print(f"number of clients per city: {requested_display}")
 
-        if n_clients_per_city is None:
-            n_clients_per_city = max(1, min(5, round(n_samples / 50)))
+        if requested_n_clients_per_city is None:
+            local_n_clients = max(1, min(5, round(n_samples / 50)))
         else:
-            n_clients_per_city = n_clients_per_city
+            local_n_clients = requested_n_clients_per_city
 
         # Determine number of clusters for this city
         if clusters_per_city is None:
@@ -164,7 +172,7 @@ def partition_city_based(
         
         print(f"  Samples: {n_samples}")
         print(f"  Clusters: {n_clusters}")
-        print(f"  Clients: {n_clients_per_city}")
+        print(f"  Clients: {local_n_clients}")
         
         # Cluster this city's embeddings
         city_cluster_labels = cluster_city_embeddings(
@@ -176,7 +184,7 @@ def partition_city_based(
         
         # Partition across clients using Dirichlet
         partitioner = DirichletPartitioner(
-            n_clients=n_clients_per_city,
+            n_clients=local_n_clients,
             alpha=alpha,
             min_samples_per_client=min_samples_per_client,
             seed=seed + city_idx,
@@ -185,7 +193,7 @@ def partition_city_based(
         city_client_data = partitioner.partition(city_cluster_labels, city_indices)
         
         # Add to global client mapping
-        for local_client_id in range(n_clients_per_city):
+        for local_client_id in range(local_n_clients):
             client_indices = city_client_data[local_client_id]
             
             all_client_data[global_client_id] = client_indices
@@ -202,7 +210,7 @@ def partition_city_based(
         city_statistics[city] = {
             "n_samples": n_samples,
             "n_clusters": n_clusters,
-            "n_clients": n_clients_per_city,
+            "n_clients": local_n_clients,
             "cluster_distribution": {
                 int(k): int(v) for k, v in 
                 zip(*np.unique(city_cluster_labels, return_counts=True))
@@ -216,7 +224,7 @@ def partition_city_based(
     
     statistics = {
         "n_cities": n_cities,
-        "n_clients_per_city": n_clients_per_city,
+        "n_clients_per_city": requested_n_clients_per_city,
         "total_clients": total_clients,
         "total_samples": total_samples,
         "alpha": alpha,
@@ -235,7 +243,7 @@ def partition_city_based(
         "statistics": statistics,
         "config": {
             "n_cities": n_cities,
-            "n_clients_per_city": n_clients_per_city,
+            "n_clients_per_city": requested_n_clients_per_city,
             "total_clients": total_clients,
             "alpha": alpha,
             "clusters_per_city": clusters_per_city,
@@ -255,7 +263,12 @@ def partition_city_based(
     print("CITY-BASED PARTITIONING COMPLETE")
     print(f"{'='*60}")
     print(f"Total cities: {n_cities}")
-    print(f"Total clients: {total_clients} ({n_clients_per_city} per city)")
+    clients_per_city_display = (
+        str(requested_n_clients_per_city)
+        if requested_n_clients_per_city is not None
+        else "adaptive"
+    )
+    print(f"Total clients: {total_clients} ({clients_per_city_display} per city)")
     print(f"Total samples: {total_samples}")
     print(f"Samples per client: {statistics['min_samples']} - {statistics['max_samples']} "
           f"(mean: {statistics['mean_samples']:.1f})")
