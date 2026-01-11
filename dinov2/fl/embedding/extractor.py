@@ -46,12 +46,15 @@ class DINOv2Extractor:
         self.model = self._load_model()
         
     def _load_model(self) -> nn.Module:
-        """Load pre-trained DINOv2 model from torch hub."""
-        print(f"Loading {self.model_name} from torch hub...")
+        """Load pre-trained DINOv2 model from local repository."""
+        # Use local repository to avoid issues with GitHub cache having incompatible hubconf.py
+        repo_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+        print(f"Loading {self.model_name} from local repo: {repo_dir}")
         
         model = torch.hub.load(
-            "facebookresearch/dinov2",
+            repo_dir,
             self.model_name,
+            source="local",
             pretrained=True,
         )
         
